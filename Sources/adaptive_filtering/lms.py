@@ -240,3 +240,46 @@ class DualSign(LMS):
             self.coef_vector[k+1] = self.coef_vector[k]+2*self.step*self.dual_sign_error*regressor
                         
         return self.output_vector, self.error_vector, self.coef_vector    
+
+
+class LMSNewton(LMS):
+    def __init__(self, step, filter_order, alpha, init_inv_rx_hat = None, init_coef = None):                        
+        LMS.__init__(self, step=step, filter_order=filter_order, init_coef=init_coef)                
+        self.alpha = alpha
+        self.init_inv_rx_hat = init_inv_rx_hat
+        self.dual_sign_error = None
+        self.inv_rx_hat = None
+
+    def __str__(self):
+        return "LMSNewton(step={}, filter_order={}, alpha={})".format(self.step, self.filter_order, self.alpha)
+        
+    def fit(self, d, x):
+        # Pre allocations
+        self.d = np.array(d)        
+        self.x = np.array(x)        
+        self.n_iterations = len(self.d)
+        self.output_vector = np.zeros([self.n_iterations], dtype=complex)
+        self.error_vector = np.zeros([self.n_iterations], dtype=complex)
+        self.coef_vector = np.zeros([self.n_iterations+1, self.n_coef], dtype=complex)
+        
+        # Initial Vectors if passed as argument        
+        self.coef_vector[0] = np.array([self.init_coef]) if self.init_coef is not None else self.coef_vector[0]
+        self.inv_rx_hat = self.init_inv_rx_hat if self.init_inv_rx_hat is not None else 1e-1*np.eye(self.n_coef)
+
+        # Improve source code regularity
+        prefixed_x = np.append(np.zeros([self.n_coef-1]), self.x)        
+        X_tapped = rolling_window(prefixed_x, self.n_coef)
+
+        for k in np.arange(self.n_iterations):                    
+            regressor = X_tapped[k]
+            self.output_vector[k] = np.dot(np.conj(self.coef_vector[k]), regressor)
+            self.error_vector[k] = self.d[k]-self.output_vector[k]
+
+            aux_den = (1-self.alpha)/self.alpha + np.dot(np.dot(np.conj(regressor).T, self.inv_rx_hat), regressor)
+            aux_prod_a = np.dot(self.inv_rx_hat, regressor)
+            aux_prod_b = np.dot(np.conj(regressor), self.inv_rx_hat)
+            self.inv_rx_hat = 1/(1-self.alpha)*(self.inv_rx_hat - np.dot(aux_prod_a, aux_prod_b)/aux_den)            
+            
+            self.coef_vector[k+1] = self.coef_vector[k]+self.step*np.conj(self.error_vector[k])*np.dot(self.inv_rx_hat, regressor)
+                        
+        return self.output_vector, self.error_vector, self.coef_vector

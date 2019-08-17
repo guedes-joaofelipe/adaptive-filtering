@@ -15,18 +15,18 @@
 # 3)  Choose an adaptive filtering algorithm to govern the rules of coefficient #
 #   updating.                                                                   #
 #                                                                               #
-#     Adaptive Algorithm used here: LMS                                         #
+#     Adaptive Algorithm used here: LMSNewton                                   #
 #                                                                               #
 #################################################################################
 
 import sys, os
 import numpy as np 
 import matplotlib.pyplot as plt
-sources_path = './../Sources/'
+sources_path = './Sources/'
 if sources_path not in sys.path:
     sys.path.append(sources_path)
 
-from adaptive_filtering.lms import LMS
+from adaptive_filtering.lms import LMSNewton
 from adaptive_filtering.utils import rolling_window, generate_learning_plots
 
 
@@ -36,25 +36,29 @@ def main(output_filepath = None):
     j = complex(0,1)
     n_ensembles = 100   # number of realizations within the ensemble
     K = 100             # number of iterations (signal length)
-    H = np.array([0.32+0.21j,-0.3+0.7j,0.5-0.8j,0.2+0.5j])    
+    H = np.array([0.32,-0.3,0.5,0.2])    
     w_o = H             # Unknown system
     sigma_n2 = .04      # noise power
     N = 4               # Number of coefficients of the adaptive filter
-    mu = .1            # Convergence factor (step) (0 < mu < 1)
+    mu = .1             # Convergence factor (step) (0 < mu < 1)
+    alpha = .05         # weight on the present info. ( 0 < alpha <= 0.1)
+    gamma = 1e-1        # Small positive constant (used to initialize the
+                        #   estimate of the inverse of the autocorrelation matrix)
 
     ## Computing 
 
     # coefficient vector for each iteration and realization, w[0] = [1, 1, ..., 1]
-    W = np.ones([n_ensembles, K+1, N], dtype=complex) 
+    W = np.ones([n_ensembles, K+1, N]) 
     MSE = np.zeros([n_ensembles, K]) # MSE vector for each realization
     MSE_min = np.zeros([n_ensembles, K]) # Minimum MSE for each realization 
+    init_inv_rx_hat = gamma*np.eye(N) #initial estimate of the inverse of the autocorrelation matrix
 
     for ensemble in np.arange(n_ensembles):    
-        d = np.zeros([K], dtype=complex) # Desired signal
+        d = np.zeros([K]) # Desired signal
         
         # Creating the input signal (normalized)        
-        x = (np.sign(np.random.randn(K)) + j*np.sign(np.random.randn(K)))/np.sqrt(2) # Complex signal
-        n = np.sqrt(sigma_n2/2)*(np.random.normal(size=K)+j*np.random.normal(size=K)) # Complex noise
+        x = (np.sign(np.random.randn(K)))/np.sqrt(2) # Complex signal
+        n = np.sqrt(sigma_n2/2)*(np.random.normal(size=K)) # Complex noise
         sigma_x2 = np.var(x) # signal power = 1
 
         # Creating a tapped version of x with a N-sized window 
@@ -67,19 +71,18 @@ def main(output_filepath = None):
         init_coef = W[ensemble][0]
         filter_order = N-1    
         
-        lms = LMS(step=mu, filter_order=filter_order, init_coef=init_coef)
-        lms.fit(d, x)     
+        lms_newton = LMSNewton(step=mu, filter_order=filter_order, init_coef=init_coef, alpha=alpha, init_inv_rx_hat=init_inv_rx_hat)
+        lms_newton.fit(d, x)     
 
-        W[ensemble] = lms.coef_vector
-        MSE[ensemble] = MSE[ensemble] + np.absolute(lms.error_vector)**2
+        W[ensemble] = lms_newton.coef_vector
+        MSE[ensemble] = MSE[ensemble] + np.absolute(lms_newton.error_vector)**2
         MSE_min[ensemble] = MSE_min[ensemble] + np.absolute(n)**2
 
     W_av = np.sum(W, axis=0)/n_ensembles
     MSE_av = sum(MSE, 2)/n_ensembles
     MSEmin_av = np.sum(MSE_min, axis=0)/n_ensembles
 
-    # Generating plots    
-    generate_learning_plots(K, N, MSE_av, MSEmin_av, W_av, w_o, output_filepath=output_filepath, algorithm='LMS')
+    generate_learning_plots(K, N, MSE_av, MSEmin_av, W_av, w_o, output_filepath=output_filepath, algorithm='LMSNewton')
 
 if __name__ == "__main__":
     main(output_filepath='./Outputs/')

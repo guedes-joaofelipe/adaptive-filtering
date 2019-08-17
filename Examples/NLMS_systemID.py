@@ -27,7 +27,7 @@ if sources_path not in sys.path:
     sys.path.append(sources_path)
 
 from adaptive_filtering.lms import NLMS
-from adaptive_filtering.utils import rolling_window
+from adaptive_filtering.utils import rolling_window, generate_learning_plots
 
 def main(output_filepath = None):
 
@@ -79,47 +79,7 @@ def main(output_filepath = None):
     MSEmin_av = np.sum(MSE_min, axis=0)/n_ensembles
 
     # Generating plots    
-    fig, ax = plt.subplots(ncols=1, nrows=2, figsize=(16,8), sharex=True)
-    ax[0].plot(np.arange(K), 10*np.log10(MSE_av))
-    ax[0].set_title('Learning Curve for MSE')
-    ax[0].set_ylabel('MSE [dB]')
-    ax[0].grid(True)
-
-    ax[1].plot(np.arange(K), 10*np.log10(MSEmin_av))
-    ax[1].set_title('Learning Curve for MSEmin')
-    ax[1].set_ylabel('MSEmin [dB]')
-    ax[1].set_xlabel('Number of iterations, k') 
-    ax[1].grid(True)
-
-    if output_filepath is not None:
-        # Creating plots output folder
-        if not os.path.exists(output_filepath):
-            os.makedirs(output_filepath)
-        fig.savefig(output_filepath + 'NLMS_learning_curve.jpg')
-
-    fig, ax = plt.subplots(ncols=1, nrows=2, figsize=(16,8), sharex=True)
-    for n in np.arange(N):
-        ax[0].plot(np.arange(K+1), np.real(W_av[:,n]), label='coeff {} {}'.format(str(n), str(complex(w_o[n]))))
-    ax[0].set_title('Evolution of the coefficients (real part)')
-    ax[0].set_ylabel('Coefficient')
-    ax[0].grid(True)
-    ax[0].legend()
-
-    for n in np.arange(N):
-        ax[1].plot(np.arange(K+1), np.imag(W_av[:,n]), label='coeff {} {}'.format(str(n), str(complex(w_o[n]))))    
-    ax[1].set_title('Evolution of the coefficients (imaginary part)')
-    ax[1].set_ylabel('Coefficient')
-    ax[1].set_xlabel('Number of iterations, k') 
-    ax[1].grid(True)
-    ax[1].legend()
-    
-    if output_filepath is not None:
-        # Creating plots output folder
-        if not os.path.exists(output_filepath):
-            os.makedirs(output_filepath)
-        fig.savefig(output_filepath + 'NLMS_coef_evolution.jpg', bbox_inches = 'tight')
-
-    plt.show()
+    generate_learning_plots(K, N, MSE_av, MSEmin_av, W_av, w_o, output_filepath=output_filepath, algorithm='NLMS')
 
 if __name__ == "__main__":
     main(output_filepath='./Outputs/')
