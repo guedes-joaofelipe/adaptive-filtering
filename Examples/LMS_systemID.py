@@ -35,9 +35,10 @@ def main(output_filepath = None):
     ## Definitions
     j = complex(0,1)
     n_ensembles = 100   # number of realizations within the ensemble
-    K = 200             # number of iterations (signal length)
-    # H = np.array([0.32+0.21*j,-0.3+0.7*j,0.5-0.8*j,0.2+0.5*j])
-    H = np.array([2, 1, -0.5, 0.2])
+    K = 100             # number of iterations (signal length)
+    H = np.array([0.32+0.21j,-0.3+0.7j,0.5-0.8j,0.2+0.5j])
+    # H = np.array([2+j, 1+0j, -0.5+0.5j, 0.2-1j])
+    # H = np.array([2 1, -0.5, 0.2])
     w_o = H             # Unknown system
     sigma_n2 = .04      # noise power
     N = 4               # Number of coefficients of the adaptive filter
@@ -53,13 +54,9 @@ def main(output_filepath = None):
     for ensemble in np.arange(n_ensembles):    
         d = np.zeros([K], dtype=complex) # Desired signal
         
-        # Creating the input signal (normalized)
-        # Complex Signal Example
-        # x = (np.sign(np.random.randn(K)) + j*np.sign(np.random.randn(K)))/np.sqrt(2) # Complex signal
-        # n = np.sqrt(sigma_n2/2)*(np.random.normal(size=K)+j*np.random.normal(size=K)) # Complex noise
-
-        x = (np.sign(np.random.randn(K)))/np.sqrt(2) 
-        n = np.sqrt(sigma_n2/2)*(np.random.normal(size=K)) # complex noise
+        # Creating the input signal (normalized)        
+        x = (np.sign(np.random.randn(K)) + j*np.sign(np.random.randn(K)))/np.sqrt(2) # Complex signal
+        n = np.sqrt(sigma_n2/2)*(np.random.normal(size=K)+j*np.random.normal(size=K)) # Complex noise
         sigma_x2 = np.var(x) # signal power = 1
 
         # Creating a tapped version of x with a N-sized window 
@@ -67,7 +64,7 @@ def main(output_filepath = None):
         X_tapped = rolling_window(prefixed_x, N)
 
         for k in np.arange(K):        
-            d[k] = np.dot(w_o, X_tapped[k])+n[k]       
+            d[k] = np.dot(np.conj(w_o), X_tapped[k])+n[k]       
         
         init_coef = W[ensemble][0]
         filter_order = N-1    
