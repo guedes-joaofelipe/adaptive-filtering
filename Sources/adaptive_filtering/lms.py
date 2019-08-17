@@ -129,12 +129,114 @@ class NLMS(LMS):
             regressor = X_tapped[k]
 
             self.output_vector[k] = np.dot(np.conj(self.coef_vector[k]), regressor)            
-            self.error_vector[k] = self.d[k]-self.output_vector[k]
-
-            # TODO: complex signals don't converge in this step (error vector gets too big elements)
+            self.error_vector[k] = self.d[k]-self.output_vector[k]            
             self.coef_vector[k+1] = self.coef_vector[k]+(self.step/(self.gamma+np.dot(np.conj(regressor.T), regressor)))*np.conj(self.error_vector[k])*regressor
                         
         return self.output_vector, self.error_vector, self.coef_vector
 
 
+class SignError(LMS):
+    def __init__(self, step, filter_order, init_coef = None):                
+        LMS.__init__(self, step=step, filter_order=filter_order, init_coef=init_coef)                
+        
+    def __str__(self):
+        return "SignError(step={}, filter_order={})".format(self.step, self.filter_order)
+        
+    def fit(self, d, x):
+        # Pre allocations
+        self.d = np.array(d)        
+        self.x = np.array(x)        
+        self.n_iterations = len(self.d)
+        self.output_vector = np.zeros([self.n_iterations], dtype=complex)
+        self.error_vector = np.zeros([self.n_iterations], dtype=complex)
+        self.coef_vector = np.zeros([self.n_iterations+1, self.n_coef], dtype=complex)
+
+        # Initial State Weight Vector if passed as argument        
+        self.coef_vector[0] = np.array([self.init_coef]) if self.init_coef is not None else self.coef_vector[0]
+
+        # Improve source code regularity
+        prefixed_x = np.append(np.zeros([self.n_coef-1]), self.x)        
+        X_tapped = rolling_window(prefixed_x, self.n_coef)
+
+        for k in np.arange(self.n_iterations):                    
+            regressor = X_tapped[k]
+
+            self.output_vector[k] = np.dot(np.conj(regressor), self.coef_vector[k])
+            self.error_vector[k] = self.d[k]-self.output_vector[k]
+            self.coef_vector[k+1] = self.coef_vector[k]+2*self.step*np.sign(self.error_vector[k])*regressor
+                        
+        return self.output_vector, self.error_vector, self.coef_vector
     
+
+class SignData(LMS):
+    def __init__(self, step, filter_order, init_coef = None):                        
+        LMS.__init__(self, step=step, filter_order=filter_order, init_coef=init_coef)                
+        
+    def __str__(self):
+        return "SignData(step={}, filter_order={})".format(self.step, self.filter_order)
+        
+    def fit(self, d, x):
+        # Pre allocations
+        self.d = np.array(d)        
+        self.x = np.array(x)        
+        self.n_iterations = len(self.d)
+        self.output_vector = np.zeros([self.n_iterations], dtype=complex)
+        self.error_vector = np.zeros([self.n_iterations], dtype=complex)
+        self.coef_vector = np.zeros([self.n_iterations+1, self.n_coef], dtype=complex)
+
+        # Initial State Weight Vector if passed as argument        
+        self.coef_vector[0] = np.array([self.init_coef]) if self.init_coef is not None else self.coef_vector[0]
+
+        # Improve source code regularity
+        prefixed_x = np.append(np.zeros([self.n_coef-1]), self.x)        
+        X_tapped = rolling_window(prefixed_x, self.n_coef)
+
+        for k in np.arange(self.n_iterations):                    
+            regressor = X_tapped[k]
+
+            self.output_vector[k] = np.dot(np.conj(regressor), self.coef_vector[k])
+            self.error_vector[k] = self.d[k]-self.output_vector[k]
+            self.coef_vector[k+1] = self.coef_vector[k]+2*self.step*self.error_vector[k]*np.sign(regressor)
+                        
+        return self.output_vector, self.error_vector, self.coef_vector
+
+
+class DualSign(LMS):
+    def __init__(self, step, filter_order, rho, gamma, init_coef = None):                        
+        LMS.__init__(self, step=step, filter_order=filter_order, init_coef=init_coef)                
+        self.rho = rho 
+        self.gamma = gamma
+        self.dual_sign_error = None
+
+    def __str__(self):
+        return "DualSign(step={}, filter_order={}, rho={}, gamma={})".format(self.step, self.filter_order, self.rho, self.gamma)
+        
+    def fit(self, d, x):
+        # Pre allocations
+        self.d = np.array(d)        
+        self.x = np.array(x)        
+        self.n_iterations = len(self.d)
+        self.output_vector = np.zeros([self.n_iterations], dtype=complex)
+        self.error_vector = np.zeros([self.n_iterations], dtype=complex)
+        self.coef_vector = np.zeros([self.n_iterations+1, self.n_coef], dtype=complex)
+        self.dual_sign_error = 0
+
+        # Initial State Weight Vector if passed as argument        
+        self.coef_vector[0] = np.array([self.init_coef]) if self.init_coef is not None else self.coef_vector[0]
+
+        # Improve source code regularity
+        prefixed_x = np.append(np.zeros([self.n_coef-1]), self.x)        
+        X_tapped = rolling_window(prefixed_x, self.n_coef)
+
+        for k in np.arange(self.n_iterations):                    
+            regressor = X_tapped[k]
+
+            self.output_vector[k] = np.dot(np.conj(regressor), self.coef_vector[k])
+            self.error_vector[k] = self.d[k]-self.output_vector[k]
+
+            self.dual_sign_error = np.sign(self.error_vector[k]) 
+            self.dual_sign_error = self.gamma*self.dual_sign_error if (np.absolute(self.error_vector[k]) > self.rho) else self.dual_sign_error
+
+            self.coef_vector[k+1] = self.coef_vector[k]+2*self.step*self.dual_sign_error*regressor
+                        
+        return self.output_vector, self.error_vector, self.coef_vector    
