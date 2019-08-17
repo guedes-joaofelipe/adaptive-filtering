@@ -1,6 +1,41 @@
+
+
+__authors__ = ['Joao Felipe Guedes da Silva <guedes.joaofelipe@poli.ufrj.br>']
+
 import numpy as np 
+from .utils import rolling_window
 
 class LMS:
+    """ 
+    Implements the Complex LMS algorithm for COMPLEX valued data.
+        (Algorithm 3.2 - book: Adaptive Filtering: Algorithms and Practical
+                                                       Implementation, Diniz)
+
+    Base class for other LMS-based classes
+
+    ...
+
+    Attributes
+    ----------    
+    . step: (float)
+        Convergence (relaxation) factor.
+    . filter_order : (int)
+        Order of the FIR filter.
+    . init_coef : (row np.array)
+        Initial filter coefficients.  (optional)
+    . d: (row np.array)
+        Desired signal. 
+    . x: (row np.array)
+        Signal fed into the adaptive filter. 
+    
+    Methods
+    -------
+    fit(d, x)
+        Fits the coefficients according to desired and input signals
+    
+    predict(x)
+        After fitted, predicts new outputs according to new input signal    
+    """
     def __init__(self, step, filter_order, init_coef = None):        
         self.step = step
         self.filter_order = filter_order
@@ -16,9 +51,19 @@ class LMS:
         self.coef_vector = None
         
     def __str__(self):
+        """ String formatter for the class"""
         return "LMS(step={}, filter_order={})".format(self.step, self.filter_order)
         
     def fit(self, d, x):
+        """ Fits the LMS coefficients according to desired and input signals
+        
+        Arguments:
+            d {np.array} -- desired signal
+            x {np.array} -- input signal
+        
+        Returns:
+            {np.array, np.array, np.array} -- output_vector, error_vector, coef_vector
+        """
         # Pre allocations
         self.d = np.array(d)        
         self.x = np.array(x)        
@@ -27,28 +72,36 @@ class LMS:
         self.error_vector = np.zeros([self.n_iterations], dtype=complex)
         self.coef_vector = np.zeros([self.n_iterations+1, self.n_coef], dtype=complex)
 
-        # Initial State Weight Vector if passed as argument
-        #self.coef_vector = np.array([self.init_coef]) if self.init_coef is not None else np.array([np.zeros([self.n_coef])])
+        # Initial State Weight Vector if passed as argument        
         self.coef_vector[0] = np.array([self.init_coef]) if self.init_coef is not None else self.coef_vector[0]
 
         # Improve source code regularity
-        prefixed_input = np.append(np.zeros([self.n_coef-1]), self.x)
-        
-        for i in np.arange(self.n_iterations):        
-            regressor = prefixed_input[i+self.n_coef-1:i-1:-1] if i != 0 else prefixed_input[i+self.n_coef-1::-1]
-            
-            self.output_vector[i] = np.dot(self.coef_vector[i], regressor)            
-            self.error_vector[i] = self.d[i]-self.output_vector[i]
-            self.coef_vector[i+1] = self.coef_vector[i]+self.step*np.conj(self.error_vector[i])*regressor
+        prefixed_x = np.append(np.zeros([self.n_coef-1]), self.x)        
+        X_tapped = rolling_window(prefixed_x, self.n_coef)
+
+        for k in np.arange(self.n_iterations):                    
+            regressor = X_tapped[k]
+
+            self.output_vector[k] = np.dot(self.coef_vector[k], regressor)            
+            self.error_vector[k] = self.d[k]-self.output_vector[k]
+
+            # TODO: complex signals don't converge in this step (error vector gets too big elements)
+            self.coef_vector[k+1] = self.coef_vector[k]+self.step*np.conj(self.error_vector[k])*regressor
                         
         return self.output_vector, self.error_vector, self.coef_vector
     
     def predict(self, x):
-        # Makes predictions for a new signal after weights are fit
+        """ Makes predictions for a new signal after weights are fit
+        
+        Arguments:
+            x {row np.array} -- new signal
+        
+        Returns:
+            float -- resulting output
+        """        
         return np.dot(self.coef_vector[-1], x)
 
 
-    
 class NLMS(LMS):
     def __init__(self, step, filter_order, gamma, init_coef = None):                
         LMS.__init__(self, step=step, filter_order=filter_order, init_coef=init_coef)        
@@ -62,25 +115,27 @@ class NLMS(LMS):
         self.d = np.array(d)        
         self.x = np.array(x)        
         self.n_iterations = len(self.d)
-        
-        # Initial State Weight Vector if passed as argument
-        self.coef_vector = np.array([self.init_coef]) if self.init_coef is not None else np.array([np.zeros([self.n_coef])])
+        self.output_vector = np.zeros([self.n_iterations], dtype=complex)
+        self.error_vector = np.zeros([self.n_iterations], dtype=complex)
+        self.coef_vector = np.zeros([self.n_iterations+1, self.n_coef], dtype=complex)
+
+        # Initial State Weight Vector if passed as argument        
+        self.coef_vector[0] = np.array([self.init_coef]) if self.init_coef is not None else self.coef_vector[0]
 
         # Improve source code regularity
-        prefixed_input = np.append(np.zeros([self.n_coef]), self.x)
-        
-        for i in np.arange(self.n_iterations):        
-            regressor = prefixed_input[i+self.n_coef:i:-1]            
-            y = np.dot(self.coef_vector[i], regressor)            
-            if i == 0:
-                self.output_vector = np.array([y])
-                self.error_vector = np.array([self.d[i]-self.output_vector[i]])
-            else:
-                self.output_vector = np.append(self.output_vector, y)
-                self.error_vector = np.append(self.error_vector, self.d[i]-self.output_vector[i])
-            
-            self.error_vector[i] = self.d[i]-self.output_vector[i]            
-            self.coef_vector = np.append(self.coef_vector, [self.step/(self.gamma+np.dot(regressor.T, regressor))*np.conj(self.error_vector[i])*regressor], axis=0)
+        prefixed_x = np.append(np.zeros([self.n_coef-1]), self.x)        
+        X_tapped = rolling_window(prefixed_x, self.n_coef)
+
+        for k in np.arange(self.n_iterations):                    
+            regressor = X_tapped[k]
+
+            self.output_vector[k] = np.dot(self.coef_vector[k], regressor)            
+            self.error_vector[k] = self.d[k]-self.output_vector[k]
+
+            # TODO: complex signals don't converge in this step (error vector gets too big elements)
+            self.coef_vector[k+1] = self.coef_vector[k]+(self.step/(self.gamma+np.dot(regressor.T, regressor)))*np.conj(self.error_vector[k])*regressor
                         
         return self.output_vector, self.error_vector, self.coef_vector
+
+
     
