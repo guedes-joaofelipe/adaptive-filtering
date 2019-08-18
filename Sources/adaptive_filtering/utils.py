@@ -48,7 +48,7 @@ def generate_learning_plots(K, N, MSE_av, MSEmin_av, W_av, w_o, output_filepath=
         # Creating plots output folder if they don't exist
         if not os.path.exists(output_filepath):
             os.makedirs(output_filepath)
-        fig.savefig(output_filepath + algorithm + '_learning_curve.jpg')
+        fig.savefig(output_filepath + algorithm + '_learning_curve.jpg', bbox_inches = 'tight')
 
     # Generating Evolution of Coefficients plots
     fig, ax = plt.subplots(ncols=1, nrows=2, figsize=(16,8), sharex=True)
