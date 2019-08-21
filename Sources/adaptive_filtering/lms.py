@@ -84,8 +84,6 @@ class LMS:
 
             self.output_vector[k] = np.dot(np.conj(self.coef_vector[k]), regressor)            
             self.error_vector[k] = self.d[k]-self.output_vector[k]
-
-            # TODO: complex signals don't converge in this step (error vector gets too big elements)
             self.coef_vector[k+1] = self.coef_vector[k]+self.step*np.conj(self.error_vector[k])*regressor
                         
         return self.output_vector, self.error_vector, self.coef_vector
@@ -97,8 +95,10 @@ class LMS:
             x {row np.array} -- new signal
         
         Returns:
-            float -- resulting output"""                
-        return np.dot(self.coef_vector[-1], x)
+            float -- resulting output""" 
+
+        # taking the last n_coef iterations of x and making w^t.x
+        return np.dot(self.coef_vector[-1], x[:-self.n_coef])
 
 
 class NLMS(LMS):
