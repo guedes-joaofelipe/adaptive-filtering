@@ -283,3 +283,48 @@ class LMSNewton(LMS):
             self.coef_vector[k+1] = self.coef_vector[k]+self.step*np.conj(self.error_vector[k])*np.dot(self.inv_rx_hat, regressor)
                         
         return self.output_vector, self.error_vector, self.coef_vector
+
+    
+class AffineProjection(LMS):
+    def __init__(self, step, filter_order, gamma, memory_length=0, init_coef = None):                        
+        LMS.__init__(self, step=step, filter_order=filter_order, init_coef=init_coef)                
+        self.gamma = gamma
+        self.memory_length = memory_length
+
+    def __str__(self):
+        return "AffineProjection(step={}, filter_order={}, L={}, gamma={})".format(self.step, self.filter_order, self.memory_length, self.gamma)
+        
+    def fit(self, d, x):
+        # Pre allocations
+        self.d = np.array(d)        
+        self.x = np.array(x)        
+        self.n_iterations = len(self.d)
+
+        self.error_vector_ap_conj = np.zeros([self.n_iterations, self.memory_length+1], dtype=complex)
+        self.output_vector_ap_conj = np.zeros([self.n_iterations, self.memory_length+1], dtype=complex)
+        self.coef_vector = np.zeros([self.n_iterations+1, self.n_coef], dtype=complex)
+        regressor = np.zeros([self.memory_length+1, self.n_coef])
+
+        # Initial Vectors if passed as argument        
+        self.coef_vector[0] = np.array([self.init_coef]) if self.init_coef is not None else self.coef_vector[0]
+
+        # Improve source code regularity
+        prefixed_x = np.append(np.zeros([self.n_coef-1]), self.x)       
+        prefixed_d = np.append(np.zeros([self.memory_length]), self.d)
+
+        # X_tapped = rolling_window(prefixed_x, self.n_coef)
+        for k in np.arange(self.n_iterations):                    
+            regressor[1:self.memory_length+1, :] = regressor[0:self.memory_length, :]
+            regressor[0,:] = prefixed_x[k+(self.n_coef):k:-1]
+
+            self.output_vector_ap_conj[k] = np.dot(np.conj(regressor), self.coef_vector[k])
+            self.error_vector_ap_conj[k] = np.conj(prefixed_d[k+self.memory_length:k:-1])-self.output_vector_ap_conj[k]
+            
+            # X_ap(k)*(X_ap^H(k).X_ap(k)+gamma*I)^{-1}
+            aux_inv = np.linalg.inv(np.dot(np.conj(regressor), regressor)+self.gamma*np.eye(self.memory_length+1))
+            aux_inv = np.dot(regressor, aux_inv)
+
+            # w(k+1) = w(k) + mu*X_ap(k)*aux_inv*e_ap(k)
+            self.coef_vector[k+1] = self.coef_vector[k]+self.step*np.dot(aux_inv, self.error_vector_ap_conj[k])
+                        
+        return self.output_vector, self.error_vector, self.coef_vector
