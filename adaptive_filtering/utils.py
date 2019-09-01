@@ -32,17 +32,14 @@ def generate_learning_plots(K, N, MSE_av, MSEmin_av, W_av, w_o=None, output_file
         algorithm {str} -- algorithm's name (default: {'LMS'})
     """
     # Generating Learning Curve plots 
-    fig, ax = plt.subplots(ncols=1, nrows=2, figsize=(16,8), sharex=True)
-    ax[0].plot(np.arange(K), 10*np.log10(MSE_av))
-    ax[0].set_title('Learning Curve for MSE')
-    ax[0].set_ylabel('MSE [dB]')
-    ax[0].grid(True)
-
-    ax[1].plot(np.arange(K), 10*np.log10(MSEmin_av))
-    ax[1].set_title('Learning Curve for MSEmin')
-    ax[1].set_ylabel('MSEmin [dB]')
-    ax[1].set_xlabel('Number of iterations, k') 
-    ax[1].grid(True)
+    fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(16,4))
+    ax.plot(np.arange(K), 10*np.log10(MSE_av), label = 'Average Learning Curve')
+    ax.plot(np.arange(K), 10*np.log10(MSEmin_av), label='Average minimum MSE')
+    ax.set_title('Learning Curve for MSE')
+    ax.set_ylabel('MSE [dB]')
+    ax.set_xlabel('Iterations, k')
+    ax.grid(True)
+    ax.legend()
 
     if output_filepath is not None:
         # Creating plots output folder if they don't exist

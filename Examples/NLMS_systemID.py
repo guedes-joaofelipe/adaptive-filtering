@@ -22,7 +22,7 @@
 import sys, os
 import numpy as np 
 import matplotlib.pyplot as plt
-sources_path = './../Sources/'
+sources_path = './../'
 if sources_path not in sys.path:
     sys.path.append(sources_path)
 
@@ -34,7 +34,7 @@ def main(output_filepath = None):
     ## Definitions
     j = complex(0,1)
     n_ensembles = 100   # number of realizations within the ensemble
-    K = 100             # number of iterations (signal length)
+    K = 500             # number of iterations (signal length)
     H = np.array([0.32+0.21*j,-0.3+0.7*j,0.5-0.8*j,0.2+0.5*j])    
     w_o = H             # Unknown system
     sigma_n2 = .04      # noise power

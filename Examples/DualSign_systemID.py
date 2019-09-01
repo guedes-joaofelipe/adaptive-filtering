@@ -22,7 +22,7 @@
 import sys, os
 import numpy as np 
 import matplotlib.pyplot as plt
-sources_path = './../Sources/'
+sources_path = './../'
 if sources_path not in sys.path:
     sys.path.append(sources_path)
 

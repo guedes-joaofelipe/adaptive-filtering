@@ -271,15 +271,16 @@ class LMSNewton(LMS):
         X_tapped = rolling_window(prefixed_x, self.n_coef)
 
         for k in np.arange(self.n_iterations):                    
-            regressor = X_tapped[k]
-            self.output_vector[k] = np.dot(np.conj(self.coef_vector[k]), regressor)
+            regressor = np.array(X_tapped[k])
+            self.output_vector[k] = np.dot(np.conj(self.coef_vector[k]), regressor)            
             self.error_vector[k] = self.d[k]-self.output_vector[k]
 
-            aux_den = (1-self.alpha)/self.alpha + np.dot(np.dot(np.conj(regressor).T, self.inv_rx_hat), regressor)
-            aux_prod_a = np.dot(self.inv_rx_hat, regressor)
-            aux_prod_b = np.dot(np.conj(regressor), self.inv_rx_hat)
-            self.inv_rx_hat = 1/(1-self.alpha)*(self.inv_rx_hat - np.dot(aux_prod_a, aux_prod_b)/aux_den)            
-            
-            self.coef_vector[k+1] = self.coef_vector[k]+self.step*np.conj(self.error_vector[k])*np.dot(self.inv_rx_hat, regressor)
+            aux_prod_a = np.dot(self.inv_rx_hat, np.array([regressor]).T)
+            aux_prod_b = np.dot(np.conj(regressor).T, self.inv_rx_hat)
+            aux_num = np.dot(aux_prod_a, np.array([aux_prod_b]))
+            aux_den = (1-self.alpha)/self.alpha + np.dot(np.dot(np.conj(regressor), self.inv_rx_hat), regressor)
+
+            self.inv_rx_hat = 1/(1-self.alpha)*(self.inv_rx_hat - aux_num/aux_den)                        
+            self.coef_vector[k+1] = self.coef_vector[k]+self.step*self.error_vector[k]*np.dot(self.inv_rx_hat, regressor)
                         
         return self.output_vector, self.error_vector, self.coef_vector
