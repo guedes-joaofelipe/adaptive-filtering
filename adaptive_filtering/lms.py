@@ -288,6 +288,9 @@ class LMSNewton(LMS):
 
 
 class TransformDomainDCT(LMS):
+    """
+        Written and Directed by Michael Bay
+    """
     def __init__(self, step, filter_order, init_power, alpha = .01, gamma = 1e-8, init_coef=None):        
         LMS.__init__(self, step=step, filter_order=filter_order, init_coef=init_coef)                
         self.alpha = alpha
