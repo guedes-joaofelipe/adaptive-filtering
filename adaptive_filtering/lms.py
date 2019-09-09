@@ -4,6 +4,7 @@ __authors__ = ['Joao Felipe Guedes da Silva <guedes.joaofelipe@poli.ufrj.br>']
 
 import numpy as np 
 from .utils import rolling_window
+from scipy.fftpack import dct
 
 class LMS:
     """ 
@@ -243,7 +244,7 @@ class DualSign(LMS):
 
 
 class LMSNewton(LMS):
-    def __init__(self, step, filter_order, alpha, init_inv_rx_hat = None, init_coef = None):                        
+    def __init__(self, step, filter_order, alpha = .01, init_inv_rx_hat = None, init_coef = None):                        
         LMS.__init__(self, step=step, filter_order=filter_order, init_coef=init_coef)                
         self.alpha = alpha
         self.init_inv_rx_hat = init_inv_rx_hat
@@ -264,7 +265,7 @@ class LMSNewton(LMS):
         
         # Initial Vectors if passed as argument        
         self.coef_vector[0] = np.array([self.init_coef]) if self.init_coef is not None else self.coef_vector[0]
-        self.inv_rx_hat = self.init_inv_rx_hat if self.init_inv_rx_hat is not None else 1e-1*np.eye(self.n_coef)
+        self.inv_rx_hat = self.init_inv_rx_hat if self.init_inv_rx_hat is not None else np.eye(self.n_coef)
 
         # Improve source code regularity
         prefixed_x = np.append(np.zeros([self.n_coef-1]), self.x)        
@@ -284,3 +285,48 @@ class LMSNewton(LMS):
             self.coef_vector[k+1] = self.coef_vector[k]+self.step*self.error_vector[k]*np.dot(self.inv_rx_hat, regressor)
                         
         return self.output_vector, self.error_vector, self.coef_vector
+
+
+class TransformDomainDCT(LMS):
+    def __init__(self, step, filter_order, init_power, alpha = .01, gamma = 1e-8, init_coef=None):        
+        LMS.__init__(self, step=step, filter_order=filter_order, init_coef=init_coef)                
+        self.alpha = alpha
+        self.gamma = gamma
+        self.init_power = init_power      
+        self.T = None  
+
+    def __str__(self):
+        return "TransformDomainDCT(step={}, filter_order={}, alpha={}, gamma={}, init_power={})".format(self.step, self.filter_order, self.alpha, self.gamma, self.init_power)
+        
+    def fit(self, d, x):
+        # Pre allocations
+        self.d = np.array(d)        
+        self.x = np.array(x)        
+        self.n_iterations = len(self.d)
+        self.output_vector = np.zeros([self.n_iterations], dtype=complex)
+        self.error_vector = np.zeros([self.n_iterations], dtype=complex)
+        self.coef_vector = np.zeros([self.n_iterations+1, self.n_coef], dtype=complex)
+        self.coef_vector_dct = np.zeros([self.n_iterations+1, self.n_coef], dtype=complex)
+        self.T = dct(np.eye(self.n_coef), axis=0)
+        T_hermitian = np.conj(np.transpose(self.T))        
+        self.power_vector = self.init_power*np.ones(self.n_coef)        
+        self.coef_vector_dct[0] = np.dot(self.T, self.init_coef)
+
+        # Improve source code regularity
+        prefixed_x = np.append(np.zeros([self.n_coef-1]), self.x)        
+        X_tapped = rolling_window(prefixed_x, self.n_coef)
+
+        for k in np.arange(self.n_iterations):                    
+            regressor_dct = np.dot(self.T, X_tapped[k])     
+            
+            # Summing two column vectors
+            self.power_vector = self.alpha*np.multiply(regressor_dct, np.conj(regressor_dct)) + (1-self.alpha)*self.power_vector                        
+            self.output_vector[k] = np.dot(np.conj(self.coef_vector_dct[k]), regressor_dct)
+            self.error_vector[k] = self.d[k]-self.output_vector[k]
+
+            aux_numerator = np.dot(np.conj(self.error_vector[k]), regressor_dct)
+            aux_denominator = self.gamma+self.power_vector            
+            self.coef_vector_dct[k+1] = self.coef_vector_dct[k]+self.step*np.divide(aux_numerator, aux_denominator)        
+            self.coef_vector[k+1] = np.dot(T_hermitian, self.coef_vector_dct[k+1])
+                     
+        return self.output_vector, self.error_vector, self.coef_vector, self.coef_vector_dct
