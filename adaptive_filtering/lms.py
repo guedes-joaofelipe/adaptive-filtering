@@ -301,6 +301,15 @@ class TransformDomainDCT(LMS):
     def __str__(self):
         return "TransformDomainDCT(step={}, filter_order={}, alpha={}, gamma={}, init_power={})".format(self.step, self.filter_order, self.alpha, self.gamma, self.init_power)
         
+    def get_DCT_matrix(self, size):
+        '''Calculate the square DCT transform matrix. Results are 
+        equivalent to Matlab dctmtx(n) with 64 bit precision.'''
+        DCTmx = np.array(range(size),np.float64).repeat(size).reshape(size,size)
+        DCTmxT = np.pi * (DCTmx.transpose()+0.5) / size
+        DCTmxT = (1.0/np.sqrt( size / 2.0)) * np.cos(DCTmx * DCTmxT)
+        DCTmxT[0] = DCTmxT[0] * (np.sqrt(2.0)/2.0)
+        return DCTmxT
+
     def fit(self, d, x):
         # Pre allocations
         self.d = np.array(d)        
@@ -310,7 +319,7 @@ class TransformDomainDCT(LMS):
         self.error_vector = np.zeros([self.n_iterations], dtype=complex)
         self.coef_vector = np.zeros([self.n_iterations+1, self.n_coef], dtype=complex)
         self.coef_vector_dct = np.zeros([self.n_iterations+1, self.n_coef], dtype=complex)
-        self.T = dct(np.eye(self.n_coef), axis=0)
+        self.T = self.get_DCT_matrix(self.n_coef)
         T_hermitian = np.conj(np.transpose(self.T))        
         self.power_vector = self.init_power*np.ones(self.n_coef)        
         self.coef_vector_dct[0] = np.dot(self.T, self.init_coef)
