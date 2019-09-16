@@ -26,7 +26,7 @@ sources_path = './../'
 if sources_path not in sys.path:
     sys.path.append(sources_path)
 
-from adaptive_filtering.lms import TransformDomainDCT
+from adaptive_filtering.lms import TransformDomain
 from adaptive_filtering.utils import rolling_window, generate_learning_plots
 
 
@@ -71,7 +71,7 @@ def main(output_filepath = None):
         init_coef = W[ensemble][0]
         filter_order = N-1    
         
-        model = TransformDomainDCT(step=mu, filter_order=filter_order, init_coef=init_coef, gamma=gamma, alpha=alpha, init_power=init_power)
+        model = TransformDomain(step=mu, filter_order=filter_order, matrix='dct', init_coef=init_coef, gamma=gamma, alpha=alpha, init_power=init_power)
         model.fit(d, x)     
 
         W[ensemble] = model.coef_vector

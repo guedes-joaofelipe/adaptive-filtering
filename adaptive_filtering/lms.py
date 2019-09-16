@@ -5,6 +5,7 @@ __authors__ = ['Joao Felipe Guedes da Silva <guedes.joaofelipe@poli.ufrj.br>']
 import numpy as np 
 from .utils import rolling_window
 from scipy.fftpack import dct
+from scipy.linalg import dft
 
 class LMS:
     """ 
@@ -287,28 +288,36 @@ class LMSNewton(LMS):
         return self.output_vector, self.error_vector, self.coef_vector
 
 
-class TransformDomainDCT(LMS):
+class TransformDomain(LMS):
     """
         Written and Directed by Michael Bay
     """
-    def __init__(self, step, filter_order, init_power, alpha = .01, gamma = 1e-8, init_coef=None):        
+    def __init__(self, step, filter_order, init_power, matrix='DCT', alpha = .01, gamma = 1e-8, init_coef=None):        
         LMS.__init__(self, step=step, filter_order=filter_order, init_coef=init_coef)                
         self.alpha = alpha
         self.gamma = gamma
         self.init_power = init_power      
         self.T = None  
+        self.matrix = matrix.lower()
 
     def __str__(self):
         return "TransformDomainDCT(step={}, filter_order={}, alpha={}, gamma={}, init_power={})".format(self.step, self.filter_order, self.alpha, self.gamma, self.init_power)
-        
-    def get_DCT_matrix(self, size):
-        '''Calculate the square DCT transform matrix. Results are 
-        equivalent to Matlab dctmtx(n) with 64 bit precision.'''
-        DCTmx = np.array(range(size),np.float64).repeat(size).reshape(size,size)
-        DCTmxT = np.pi * (DCTmx.transpose()+0.5) / size
-        DCTmxT = (1.0/np.sqrt( size / 2.0)) * np.cos(DCTmx * DCTmxT)
-        DCTmxT[0] = DCTmxT[0] * (np.sqrt(2.0)/2.0)
-        return DCTmxT
+    
+    def get_transform_matrix(self, size):
+        """ Calculates the transform matrix based on self.matrix parameter, 
+            which can be {'dct', 'dft'}."""
+
+        if self.matrix == 'dct':
+            '''Calculate the square DCT transform matrix. Results are 
+                equivalent to Matlab dctmtx(n) with 64 bit precision.'''
+            transform_matrix = np.array(range(size),np.float64).repeat(size).reshape(size,size)
+            transform_matrixT = np.pi * (transform_matrix.transpose()+0.5) / size
+            transform_matrixT = (1.0/np.sqrt( size / 2.0)) * np.cos(transform_matrix * transform_matrixT)
+            transform_matrixT[0] = transform_matrixT[0] * (np.sqrt(2.0)/2.0)
+        elif self.matrix == 'dft':
+            transform_matrixT = dft(size, scale='sqrtn')
+
+        return transform_matrixT
 
     def fit(self, d, x):
         # Pre allocations
@@ -319,7 +328,7 @@ class TransformDomainDCT(LMS):
         self.error_vector = np.zeros([self.n_iterations], dtype=complex)
         self.coef_vector = np.zeros([self.n_iterations+1, self.n_coef], dtype=complex)
         self.coef_vector_dct = np.zeros([self.n_iterations+1, self.n_coef], dtype=complex)
-        self.T = self.get_DCT_matrix(self.n_coef)
+        self.T = self.get_transform_matrix(self.n_coef)
         T_hermitian = np.conj(np.transpose(self.T))        
         self.power_vector = self.init_power*np.ones(self.n_coef)        
         self.coef_vector_dct[0] = np.dot(self.T, self.init_coef)
@@ -342,3 +351,53 @@ class TransformDomainDCT(LMS):
             self.coef_vector[k+1] = np.dot(T_hermitian, self.coef_vector_dct[k+1])
                      
         return self.output_vector, self.error_vector, self.coef_vector, self.coef_vector_dct
+
+
+class AffineProjection(LMS):
+    """
+        A final projection
+    """
+    def __init__(self, step, filter_order, gamma = .001, memory_length=1, init_coef=None):        
+        LMS.__init__(self, step=step, filter_order=filter_order, init_coef=init_coef)                        
+        self.gamma = gamma
+        self.memory_length = memory_length
+        
+    def __str__(self):
+        return "AffineProjection(step={}, filter_order={}, L={}, gamma={})".format(self.step, self.filter_order, self.memory_length, self.gamma)
+
+    def fit(self, d, x):
+        # Pre allocations
+        self.d = d
+        self.x = x
+        self.n_iterations = len(self.d)
+
+        # Initialization
+        d_ap = np.zeros(self.memory_length+1, dtype=complex)
+        output_vector_ap = np.zeros(self.memory_length+1, dtype=complex)
+        error_vector_ap = np.zeros(self.memory_length+1, dtype=complex)
+        self.error_vector = np.zeros([self.n_iterations], dtype=complex)
+        self.coef_vector = np.zeros([self.n_iterations+1, self.n_coef], dtype=complex)
+        self.output_vector = np.zeros([self.n_iterations], dtype=complex)
+
+        # Input initial conditions (assumed relaxed)
+        input_vector = np.zeros(self.n_coef, dtype=complex)
+        input_ap = np.zeros([self.memory_length+1, self.n_coef], dtype=complex)                
+
+        for k in np.arange(self.n_iterations):
+            input_vector    = np.roll(input_vector,1)
+            input_vector[0] = self.x[k]           
+                        
+            input_ap    = np.roll(input_ap, 1, axis = 0)
+            input_ap[0] = input_vector
+            
+            d_ap    = np.roll(d_ap,1)
+            d_ap[0] = self.d[k]
+            
+            output_vector_ap = np.matmul(np.conj(self.coef_vector[k]),np.transpose(input_ap))
+            error_vector_ap  = d_ap - output_vector_ap
+            
+            self.coef_vector[k+1] = self.coef_vector[k] + self.step*np.matmul(np.conj(error_vector_ap),np.matmul(np.transpose(np.linalg.inv(np.matmul(np.conj(input_ap),np.transpose(input_ap))+ self.gamma*np.eye(self.memory_length+1, dtype = complex))),input_ap))
+            self.output_vector[k] = output_vector_ap[0]
+            self.error_vector[k]  = error_vector_ap[0]
+
+        return self.output_vector, self.error_vector, self.coef_vector

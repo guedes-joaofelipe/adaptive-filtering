@@ -50,14 +50,14 @@ def generate_learning_plots(K, N, MSE_av, MSEmin_av, W_av, w_o=None, output_file
     # Generating Evolution of Coefficients plots
     fig, ax = plt.subplots(ncols=1, nrows=2, figsize=(16,8), sharex=True)
     for n in np.arange(N):
-        ax[0].plot(np.arange(K+1), np.real(W_av[:,n]), label='coeff {} {}'.format(str(n), '' if w_o is None else str(complex(w_o[n]))))
+        ax[0].plot(np.arange(K+1), np.real(W_av[:,n]), label='coeff {}'.format(str(n)))
     ax[0].set_title('Evolution of the coefficients (real part)')
     ax[0].set_ylabel('Coefficient')
     ax[0].grid(True)
     ax[0].legend()
 
     for n in np.arange(N):
-        ax[1].plot(np.arange(K+1), np.imag(W_av[:,n]), label='coeff {} {}'.format(str(n), '' if w_o is None else str(complex(w_o[n]))))    
+        ax[1].plot(np.arange(K+1), np.imag(W_av[:,n]), label='coeff {}'.format(str(n)))    
     ax[1].set_title('Evolution of the coefficients (imaginary part)')
     ax[1].set_ylabel('Coefficient')
     ax[1].set_xlabel('Number of iterations, k') 
