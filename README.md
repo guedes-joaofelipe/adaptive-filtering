@@ -14,6 +14,8 @@ The following LMS-based algorithms have been implemented:
 - SignData
 - SignError
 - DualSign
+- AffineProjection
+- TransformDomain using DCT and DFT
 
 ## Examples 
 
@@ -21,7 +23,7 @@ To run examples, check the `Examples` folder. The scripts do not need any argume
 
 Take for instance a system identifications where the standard LMS algorithm has to identify the following weights vector (which is also its Wiener Solution): 
 
-$$ \textbf{w}_o = [0.32+0.21j,-0.3+0.7j,0.5-0.8j,0.2+0.5j]^T$$
+$\textbf{w}_o = [0.32+0.21j,-0.3+0.7j,0.5-0.8j,0.2+0.5j]^T$
 
 By running the example with $K = 100$ iterations, $\mu = 0.1$ and taking the average of $25$ ensembles, the following learning curves are provided:
 
